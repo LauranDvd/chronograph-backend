@@ -10,6 +10,7 @@ class HistoryModel:
         self.model.to(self.device)
 
     def generate_response(self, prompt: str, max_length: int = 100) -> str:
+        print(f"Prompting model with this prompt: {prompt}")
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model.generate(**inputs, max_length=max_length, do_sample=True, top_p=0.95, temperature=0.8)

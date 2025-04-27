@@ -12,5 +12,7 @@ class Message:
         self.sender = sender
 
     def __repr__(self):
-        return f"{self.sender}: {self.content}"
+        return f"{self.sender.name}: {self.content}"
 
+    def __str__(self):
+        return self.__repr__()
