@@ -1,3 +1,4 @@
+import os
 import logging
 import sys
 import threading
@@ -8,6 +9,8 @@ from flask_socketio import SocketIO, emit
 from domain.message import Message, MessageSender
 from history_model import HistoryModel
 from flask_cors import CORS
+from project_constants import LLM_MODEL_NAME
+
 
 app = Flask(__name__)
 
@@ -20,14 +23,25 @@ logger = logging.getLogger()
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
 
-base_llm_model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-history_model = HistoryModel(base_llm_model_name)
+history_model = HistoryModel(LLM_MODEL_NAME)
 
 chat_histories = {}
 chat_histories_locks = {}
 
 
-@socketio.on('connect')
+def add_to_history(message: str, type: str, sid: str) -> None:
+    if type != "user" and type != "assistant":
+        raise ValueError("Invalid message type. Must be 'user' or 'assistant'.")
+
+    message = {"role": type, "content": message}
+
+    print(f"Acquiring lock for {request.sid}")
+    chat_histories_locks[sid].acquire()
+    chat_histories[sid].append(message)
+    chat_histories_locks[sid].release()
+
+
+@socketio.on("connect")
 def handle_connect():
     sid = request.sid
     logger.log(logging.INFO, "Client connected with sid=%s", sid)
@@ -35,44 +49,26 @@ def handle_connect():
     chat_histories_locks[sid] = threading.Lock()
 
 
-@socketio.on('message')
+@socketio.on("message")
 def handle_message(message):
     logger.log(logging.INFO, "Received message on WS: %s", message)
-    user_message = message.get('message', '')
-
-    message = Message(user_message, MessageSender.USER)
-
-    print(f"Acquiring lock for {request.sid}")
-    chat_histories_locks[request.sid].acquire()
-    chat_histories[request.sid].append(message)
-    number_of_messages = len(chat_histories[request.sid])
-    chat_histories_locks[request.sid].release()
+    user_message = message.get("message", "")
 
     if user_message:
-        # user_message_with_chat_history = add_history_to_message(chat_histories[request.sid])
-        response = history_model.generate_response(user_message)
-        # response = "Response to your latest (" + str(number_of_messages) + "th) message: " + response
-        emit('message', {'message': response})
+        add_to_history(user_message, "user", request.sid)
+        response = history_model.generate_response(chat_histories[request.sid])
+        add_to_history(response, "assistant", request.sid)
+
+        emit("message", {"message": response})
     else:
-        emit('message', {'error': 'No message provided'})
+        emit("message", {"error": "No message provided"})
 
 
-def add_history_to_message(chat_history) -> str:
-    message_with_chat_history = (
-        "The following is a conversation history. Answer to the last message from the user. "
-        "Only output your answer. Do not output anything else.\n")
-    for message in chat_history:
-        message_with_chat_history += str(message) + "\n"
-
-    # Append the user message to the history
-    return message_with_chat_history
-
-
-@app.route('/get_llm_name', methods=['GET'])
+@app.route("/get_llm_name", methods=["GET"])
 def get_llm_name():
-    return jsonify({"llm_name": base_llm_model_name}), 200
+    return jsonify({"llm_name": LLM_MODEL_NAME}), 200
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # app.run(debug=True)
     socketio.run(app, debug=True)
