@@ -4,7 +4,7 @@ import torch
 from langchain_chroma import Chroma
 from langchain_openai import ChatOpenAI
 
-from create_vectordb_script import embedding
+from embedding_model import EmbeddingModel
 from project_constants import DATABASE_PATH, LM_STUDIO_URL
 
 
@@ -19,7 +19,7 @@ class HistoryModel:
             model=model_name,
         )
 
-        self.embedding = embedding
+        self.embedding = EmbeddingModel()
 
         # load the existing vector database
         self.vectordb = Chroma(
