@@ -38,6 +38,7 @@ class HistoryModel:
 
         formatted_chunks = ""
         for i, chunk in enumerate(retrieved_chunks):
+            print(f"Chunk {i}: {chunk}")
             formatted_chunks += f"- {chunk.page_content}\n"
 
         augmented_prompt = f"{last_user_message}\nHere are some chunks of information that could help you, they might be out of order. You should use them only if they are relevant to my question.\nThe chunks are:{formatted_chunks}"
