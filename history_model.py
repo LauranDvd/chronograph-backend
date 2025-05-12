@@ -28,7 +28,7 @@ class HistoryModel:
         )
         print(self.vectordb._collection.count())
 
-    def augment_last_user_message(self, chat_history: list) -> list:
+    def augment_last_user_message(self, chat_history: list) -> (list, list):
         if chat_history[-1]["role"] != "user":
             raise ValueError("Last message is not from the user.")
 
@@ -37,14 +37,25 @@ class HistoryModel:
         retrieved_chunks = self.vectordb.similarity_search_by_vector(embedded_query)
 
         formatted_chunks = ""
+        chunk_sources = []
         for i, chunk in enumerate(retrieved_chunks):
+            print(f"Chunk {i}: {chunk}")
             formatted_chunks += f"- {chunk.page_content}\n"
+            if "source" in chunk.metadata and "source_title" in chunk.metadata:
+                source = chunk.metadata.get("source")
+                source_title = chunk.metadata.get("source_title")
+                chunk_sources.append(source + ". " + source_title)
 
         augmented_prompt = f"{last_user_message}\nHere are some chunks of information that could help you, they might be out of order. You should use them only if they are relevant to my question.\nThe chunks are:{formatted_chunks}"
         chat_history[-1]["content"] = augmented_prompt
-        return chat_history
+        return chat_history, chunk_sources
 
     def generate_response(self, chat_history: list, max_length: int = 128) -> str:
-        chat_history = self.augment_last_user_message(chat_history)
+        chat_history, chunk_sources = self.augment_last_user_message(chat_history)
+        print(f"invoking model with message={chat_history}\n--------------------------\n")
         response = self.model.invoke(chat_history)
-        return response.content
+
+        chunk_sources_nice = "\n".join(chunk_sources)
+
+        response_with_sources = response.content + "\n\nSources:\n" + chunk_sources_nice
+        return response_with_sources
