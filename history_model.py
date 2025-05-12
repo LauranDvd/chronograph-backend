@@ -1,5 +1,6 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
+from copy import deepcopy
 
 from langchain_chroma import Chroma
 from langchain_openai import ChatOpenAI
@@ -32,6 +33,9 @@ class HistoryModel:
         if chat_history[-1]["role"] != "user":
             raise ValueError("Last message is not from the user.")
 
+        # to avoid modifying the original chat history when augmenting the user message
+        chat_history = deepcopy(chat_history)
+
         last_user_message = chat_history[-1]["content"]
         embedded_query = self.embedding.embed_query(last_user_message)
         retrieved_chunks = self.vectordb.similarity_search_by_vector(embedded_query)
@@ -39,7 +43,7 @@ class HistoryModel:
         formatted_chunks = ""
         chunk_sources = []
         for i, chunk in enumerate(retrieved_chunks):
-            print(f"Chunk {i}: {chunk}")
+            # print(f"Chunk {i}: {chunk}")
             formatted_chunks += f"- {chunk.page_content}\n"
             if "source" in chunk.metadata and "source_title" in chunk.metadata:
                 source = chunk.metadata.get("source")
@@ -52,7 +56,9 @@ class HistoryModel:
 
     def generate_response(self, chat_history: list, max_length: int = 128) -> str:
         chat_history, chunk_sources = self.augment_last_user_message(chat_history)
-        print(f"invoking model with message={chat_history}\n--------------------------\n")
+        # print(
+        #     f"invoking model with message={chat_history}\n--------------------------\n"
+        # )
         response = self.model.invoke(chat_history)
 
         chunk_sources_nice = "\n".join(chunk_sources)
