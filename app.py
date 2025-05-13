@@ -11,6 +11,8 @@ import embedding_model
 from domain.message import Message, MessageSender
 from history_model import HistoryModel
 from flask_cors import CORS
+
+from human_feedback.human_feedback import save_feedback_to_csv
 from project_constants import LLM_MODEL_NAME, DATABASE_PATH, EMBEDDING_MODEL_NAME
 
 app = Flask(__name__)
@@ -40,6 +42,36 @@ def add_to_history(message: str, type: str, sid: str) -> None:
     chat_histories_locks[sid].acquire()
     chat_histories[sid].append(message)
     chat_histories_locks[sid].release()
+@socketio.on("like")
+def handle_like(data):
+    logger.log(logging.INFO, f"Received like request: {data}")
+    sid = request.sid
+    index = data.get("index")
+
+    try:
+        message = chat_histories[sid][index]
+        logger.log(logging.INFO, f"User liked message at index {index} from session {sid}: {message['content']}")
+        save_feedback_to_csv(sid, chat_histories[sid], index, "like")
+    except KeyError:
+        logger.log(logging.INFO, f"Like failed: invalid session {sid}")
+    except IndexError:
+        logger.log(logging.INFO, f"Like failed: invalid index {index}")
+
+
+@socketio.on("dislike")
+def handle_dislike(data):
+    logger.log(logging.INFO, f"Received dislike request: {data}")
+    sid = request.sid
+    index = data.get("index")
+
+    try:
+        message = chat_histories[sid][index]
+        logger.log(logging.INFO, f"User disliked message at index {index} from session {sid}: {message['content']}")
+        save_feedback_to_csv(sid, chat_histories[sid], index, "dislike")
+    except KeyError:
+        logger.log(logging.INFO, f"Dislike failed: invalid session {sid}")
+    except IndexError:
+        logger.log(logging.INFO, f"Dislike failed: invalid index {index}")
 
 
 @socketio.on("connect")
