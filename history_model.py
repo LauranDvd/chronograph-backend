@@ -54,7 +54,14 @@ class HistoryModel:
                 source_title = chunk.metadata.get("source_title")
                 chunk_sources.append(source + ". " + source_title)
 
-        augmented_prompt = f"{last_user_message}\nHere are some chunks of information that could help you, they might be out of order. You should use them only if they are relevant to my question.\nThe chunks are:{formatted_chunks}"
+        with open(FEEDBACK_LOG_FILE, 'r') as feedback_csv_file:
+            reader = csv.reader(feedback_csv_file)
+            feedback_message = "Here is the feedback from the last messages. Take them into account when generating your response:\n"
+            for row in reader:
+                feedback_message += f'User message: {row[1]}\nGenerated reponse: {row[2]}\nFeedback: {row[0]}\n'
+
+        chunks_message = f'Here are some chunks of information that could help you, they might be out of order. You should use them only if they are relevant to my question.\nThe chunks are:{formatted_chunks}'
+        augmented_prompt = f"{last_user_message}\n{chunks_message}\n{feedback_message}"
         chat_history[-1]["content"] = augmented_prompt
         return chat_history, chunk_sources
 
