@@ -1,15 +1,17 @@
-import logging
+import os
 import logging
 import sys
 import threading
 
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from flask_socketio import SocketIO, emit
+from langchain_chroma import Chroma
 
+import embedding_model
+from domain.message import Message, MessageSender
 from history_model import HistoryModel
-from human_feedback.human_feedback import save_feedback_to_csv
-from project_constants import LLM_MODEL_NAME
+from flask_cors import CORS
+from project_constants import LLM_MODEL_NAME, DATABASE_PATH, EMBEDDING_MODEL_NAME
 
 app = Flask(__name__)
 
@@ -18,9 +20,9 @@ CORS(app, origins=["http://localhost:5173"])
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 logger = logging.getLogger()
+
 handler = logging.StreamHandler(sys.stdout)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 history_model = HistoryModel(LLM_MODEL_NAME)
 
@@ -63,38 +65,6 @@ def handle_message(message):
         emit("message", {"error": "No message provided"})
 
 
-@socketio.on("like")
-def handle_like(data):
-    logger.log(logging.INFO, f"Received like request: {data}")
-    sid = request.sid
-    index = data.get("index")
-
-    try:
-        message = chat_histories[sid][index]
-        logger.log(logging.INFO, f"User liked message at index {index} from session {sid}: {message['content']}")
-        save_feedback_to_csv(sid, chat_histories[sid], index, "like")
-    except KeyError:
-        logger.log(logging.INFO, f"Like failed: invalid session {sid}")
-    except IndexError:
-        logger.log(logging.INFO, f"Like failed: invalid index {index}")
-
-
-@socketio.on("dislike")
-def handle_dislike(data):
-    logger.log(logging.INFO, f"Received dislike request: {data}")
-    sid = request.sid
-    index = data.get("index")
-
-    try:
-        message = chat_histories[sid][index]
-        logger.log(logging.INFO, f"User disliked message at index {index} from session {sid}: {message['content']}")
-        save_feedback_to_csv(sid, chat_histories[sid], index, "dislike")
-    except KeyError:
-        logger.log(logging.INFO, f"Dislike failed: invalid session {sid}")
-    except IndexError:
-        logger.log(logging.INFO, f"Dislike failed: invalid index {index}")
-
-
 @app.route("/get_llm_name", methods=["GET"])
 def get_llm_name():
     return jsonify({"llm_name": LLM_MODEL_NAME}), 200
@@ -102,4 +72,6 @@ def get_llm_name():
 
 if __name__ == "__main__":
     # app.run(debug=True)
+    # check if the quering form the db works
+
     socketio.run(app, debug=True)
